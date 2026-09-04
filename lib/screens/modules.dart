@@ -33,10 +33,36 @@ class StudentsPage extends StatefulWidget { const StudentsPage({super.key}); @ov
 class _StudentsPageState extends State<StudentsPage>{
   String query=''; int? bus; late Future<List<Map<String,Object?>>> rows;
   @override void initState(){super.initState();reload();} void reload(){rows=context.read<AppState>().repo.students(query:query,vehicleId:bus);}
-  @override Widget build(BuildContext context)=>PageFrame(title:'Students',subtitle:'Student profiles, bus groups, arrears and transfers',actions:[FilledButton.icon(onPressed:()=>editStudent(),icon:const Icon(Icons.add),label:const Text('Add student'))],child:Column(children:[
-    Row(children:[Expanded(child:TextField(onChanged:(v){query=v;setState(reload);},decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Name, student ID or barcode...'))),const SizedBox(width:12),FutureBuilder(future:context.read<AppState>().repo.vehicles(),builder:(_,s)=>DropdownButton<int?>(value:bus,hint:const Text('All buses'),items:[const DropdownMenuItem(value:null,child:Text('All buses')),...?s.data?.map((v)=>DropdownMenuItem(value:v['id'] as int,child:Text('${v['vehicle_number']}')))],onChanged:(v)=>setState((){bus=v;reload();}))) ]),const SizedBox(height:14),
-    Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows,builder:(_,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());if(s.data!.isEmpty)return const EmptyState(Icons.school_outlined,'No students found');return Card(child:ListView.separated(itemCount:s.data!.length,separatorBuilder:(_,__)=>const Divider(height:1),itemBuilder:(_,i){final r=s.data![i];return ListTile(leading:CircleAvatar(child:Text('${r['name']}'.substring(0,1).toUpperCase())),title:Text('${r['name']}  •  ${r['student_code']}',style:const TextStyle(fontWeight:FontWeight.w600)),subtitle:Text('${r['vehicle_number']??'No bus'}  |  ${r['school']??''}  |  Grade ${r['grade']??'-'}'),trailing:Wrap(crossAxisAlignment:WrapCrossAlignment.center,children:[Text(money(r['outstanding']),style:TextStyle(color:(r['outstanding'] as num)>0?Colors.red:Colors.green,fontWeight:FontWeight.bold)),IconButton(onPressed:()=>editStudent(r),icon:const Icon(Icons.edit_outlined)),PopupMenuButton<String>(onSelected:(v)=>studentAction(v,r),itemBuilder:(_)=>[PopupMenuItem(value:'toggle',child:Text((r['is_active']==1)?'Deactivate':'Reactivate')),if(context.read<AppState>().canDelete)const PopupMenuItem(value:'delete',child:Text('Delete'))])]),onTap:()=>showStudent(r);};}));}))
-  ]));
+  @override Widget build(BuildContext context){return PageFrame(
+    title:'Students',subtitle:'Student profiles, bus groups, arrears and transfers',
+    actions:[FilledButton.icon(onPressed:()=>editStudent(),icon:const Icon(Icons.add),label:const Text('Add student'))],
+    child:Column(children:[
+      Row(children:[
+        Expanded(child:TextField(onChanged:(v){query=v;setState(reload);},decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Name, student ID or barcode...'))),
+        const SizedBox(width:12),
+        FutureBuilder<List<Map<String,Object?>>>(future:context.read<AppState>().repo.vehicles(),builder:(_,s)=>DropdownButton<int?>(value:bus,hint:const Text('All buses'),items:[const DropdownMenuItem<int?>(value:null,child:Text('All buses')),...?s.data?.map((v)=>DropdownMenuItem<int?>(value:v['id'] as int,child:Text('${v['vehicle_number']}')))],onChanged:(v)=>setState((){bus=v;reload();}))),
+      ]),
+      const SizedBox(height:14),
+      Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows,builder:(_,s){
+        if(!s.hasData)return const Center(child:CircularProgressIndicator());
+        if(s.data!.isEmpty)return const EmptyState(Icons.school_outlined,'No students found');
+        return Card(child:ListView.separated(itemCount:s.data!.length,separatorBuilder:(_,__)=>const Divider(height:1),itemBuilder:(_,i){
+          final r=s.data![i]; final name='${r['name']}';
+          return ListTile(
+            leading:CircleAvatar(child:Text(name.isEmpty?'?':name.substring(0,1).toUpperCase())),
+            title:Text('$name • ${r['student_code']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+            subtitle:Text('${r['vehicle_number']??'No bus'} | ${r['school']??''} | Grade ${r['grade']??'-'}'),
+            trailing:Wrap(crossAxisAlignment:WrapCrossAlignment.center,children:[
+              Text(money(r['outstanding']),style:TextStyle(color:(r['outstanding'] as num)>0?Colors.red:Colors.green,fontWeight:FontWeight.bold)),
+              IconButton(onPressed:()=>editStudent(r),icon:const Icon(Icons.edit_outlined)),
+              PopupMenuButton<String>(onSelected:(v)=>studentAction(v,r),itemBuilder:(_)=>[PopupMenuItem(value:'toggle',child:Text((r['is_active']==1)?'Deactivate':'Reactivate')),if(context.read<AppState>().canDelete)const PopupMenuItem(value:'delete',child:Text('Delete'))]),
+            ]),
+            onTap:()=>showStudent(r),
+          );
+        }));
+      })),
+    ]),
+  );}
   Future<void> editStudent([Map<String,Object?>? row])async{final ok=await showDialog<bool>(context:context,builder:(_)=>StudentDialog(row:row));if(ok==true)setState(reload);}
   Future<void> studentAction(String a,Map<String,Object?> r)async{if(a=='toggle')await context.read<AppState>().repo.setStudentActive(r['id'] as int,r['is_active']!=1);else await context.read<AppState>().repo.deleteStudent(r['id'] as int);setState(reload);}
   void showStudent(Map<String,Object?> r)=>showDialog(context:context,builder:(_)=>AlertDialog(title:Text('${r['name']} — ${r['student_code']}'),content:SizedBox(width:520,child:FutureBuilder(future:context.read<AppState>().repo.ledger(r['id'] as int),builder:(_,s)=>ListView(shrinkWrap:true,children:[Text('Bus: ${r['vehicle_number']}\nSchool: ${r['school']}\nPickup: ${r['pickup_location']}\nWhatsApp: ${r['whatsapp_number']}\nMonthly fee: ${money(r['monthly_fee'])}\nOutstanding: ${money(r['outstanding'])}'),const SizedBox(height:18),const Text('Monthly ledger',style:TextStyle(fontWeight:FontWeight.bold)),...?s.data?.map((x)=>ListTile(dense:true,title:Text('${x['ledger_year']}-${('${x['ledger_month']}').padLeft(2,'0')}'),subtitle:Text('${x['status']}'),trailing:Text(money(x['balance_due']))))]))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Close'))]));
@@ -60,8 +86,31 @@ class _PaymentsPageState extends State<PaymentsPage>{int? student;final amount=T
 }
 
 class PaymentHistoryPage extends StatefulWidget{const PaymentHistoryPage({super.key});@override State<PaymentHistoryPage> createState()=>_PaymentHistoryPageState();}
-class _PaymentHistoryPageState extends State<PaymentHistoryPage>{String q='';late Future<List<Map<String,Object?>>> rows;@override void initState(){super.initState();reload();}void reload()=>rows=context.read<AppState>().repo.payments(query:q);
- @override Widget build(BuildContext context)=>PageFrame(title:'Payment History',subtitle:'Receipts, dates, methods and reversals',child:Column(children:[TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Student, ID or receipt...'),onChanged:(v)=>setState((){q=v;reload();})),const SizedBox(height:14),Expanded(child:FutureBuilder(future:rows,builder:(_,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());if(s.data!.isEmpty)return const EmptyState(Icons.receipt_long,'No payments found');return Card(child:ListView.separated(itemCount:s.data!.length,separatorBuilder:(_,__)=>const Divider(height:1),itemBuilder:(_,i){final r=s.data![i];return ListTile(leading:const CircleAvatar(child:Icon(Icons.receipt)),title:Text('${r['name']} • ${money(r['amount'])}'),subtitle:Text('${r['receipt_number']}  |  ${r['payment_date']}  |  ${r['payment_method']}  |  ${r['vehicle_number']??''}'),trailing:context.read<AppState>().canDelete?IconButton(icon:const Icon(Icons.delete_outline),onPressed:()async{await context.read<AppState>().repo.deletePayment(r['id'] as int);setState(reload);}):null);}))}))]));}
+class _PaymentHistoryPageState extends State<PaymentHistoryPage>{
+  String q=''; late Future<List<Map<String,Object?>>> rows;
+  @override void initState(){super.initState();reload();}
+  void reload(){rows=context.read<AppState>().repo.payments(query:q);}
+  @override Widget build(BuildContext context){
+    return PageFrame(title:'Payment History',subtitle:'Receipts, dates, methods and reversals',child:Column(children:[
+      TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Student, ID or receipt...'),onChanged:(v)=>setState((){q=v;reload();})),
+      const SizedBox(height:14),
+      Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows,builder:(_,s){
+        if(!s.hasData)return const Center(child:CircularProgressIndicator());
+        if(s.data!.isEmpty)return const EmptyState(Icons.receipt_long,'No payments found');
+        return Card(child:ListView.separated(
+          itemCount:s.data!.length,
+          separatorBuilder:(_,__)=>const Divider(height:1),
+          itemBuilder:(_,i){final r=s.data![i];return ListTile(
+            leading:const CircleAvatar(child:Icon(Icons.receipt)),
+            title:Text('${r['name']} • ${money(r['amount'])}'),
+            subtitle:Text('${r['receipt_number']} | ${r['payment_date']} | ${r['payment_method']} | ${r['vehicle_number']??''}'),
+            trailing:context.read<AppState>().canDelete?IconButton(icon:const Icon(Icons.delete_outline),onPressed:()async{await context.read<AppState>().repo.deletePayment(r['id'] as int);setState(reload);}):null,
+          );},
+        ));
+      })),
+    ]));
+  }
+}
 
 class VehiclesPage extends StatefulWidget{const VehiclesPage({super.key});@override State<VehiclesPage> createState()=>_VehiclesPageState();}
 class _VehiclesPageState extends State<VehiclesPage>{String q='';late Future<List<Map<String,Object?>>> rows;@override void initState(){super.initState();reload();}void reload()=>rows=context.read<AppState>().repo.vehicles(query:q);
@@ -76,13 +125,50 @@ class VehicleHistoryDialog extends StatelessWidget{final Map<String,Object?> veh
 class HistoryList extends StatelessWidget{final Future<List<Map<String,Object?>>> future;final String Function(Map<String,Object?>) builder;const HistoryList({super.key,required this.future,required this.builder});@override Widget build(BuildContext context)=>FutureBuilder(future:future,builder:(_,s)=>!s.hasData?const Center(child:CircularProgressIndicator()):s.data!.isEmpty?const EmptyState(Icons.history,'No records'):ListView.builder(itemCount:s.data!.length,itemBuilder:(_,i)=>ListTile(title:Text(builder(s.data![i])))));}
 
 class HiringPage extends StatefulWidget{const HiringPage({super.key});@override State<HiringPage> createState()=>_HiringPageState();}
-class _HiringPageState extends State<HiringPage>{String q='';late Future<List<Map<String,Object?>>> rows;@override void initState(){super.initState();reload();}void reload()=>rows=context.read<AppState>().repo.hiring(query:q);
- @override Widget build(BuildContext context)=>PageFrame(title:'Hiring / Trips',subtitle:'Bookings, balances, expenses and profit',actions:[FilledButton.icon(onPressed:()=>edit(),icon:const Icon(Icons.add),label:const Text('New booking'))],child:Column(children:[TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Customer, destination or invoice...'),onChanged:(v)=>setState((){q=v;reload();})),const SizedBox(height:14),Expanded(child:FutureBuilder(future:rows,builder:(_,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());if(s.data!.isEmpty)return const EmptyState(Icons.route,'No bookings found');return Card(child:ListView.separated(itemCount:s.data!.length,separatorBuilder:(_,__)=>const Divider(height:1),itemBuilder:(_,i){final r=s.data![i];return ListTile(leading:CircleAvatar(child:Text('${r['booking_status']}'.substring(0,1))),title:Text('${r['customer_name']} → ${r['destination']}',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${r['invoice_number']} | ${r['trip_date']} | ${r['vehicle_number']} | ${r['payment_status']}'),trailing:Wrap(crossAxisAlignment:WrapCrossAlignment.center,children:[Column(mainAxisAlignment:MainAxisAlignment.center,crossAxisAlignment:CrossAxisAlignment.end,children:[Text(money(r['trip_charge']),style:const TextStyle(fontWeight:FontWeight.bold)),Text('Profit ${money(r['profit'])}',style:const TextStyle(fontSize:11,color:Colors.green))]),IconButton(onPressed:()=>edit(r),icon:const Icon(Icons.edit_outlined)),IconButton(onPressed:()=>expenses(r),icon:const Icon(Icons.wallet_outlined))]));}))}))]));
+class _HiringPageState extends State<HiringPage>{
+ String q='';late Future<List<Map<String,Object?>>> rows;
+ @override void initState(){super.initState();reload();}
+ void reload(){rows=context.read<AppState>().repo.hiring(query:q);}
+ @override Widget build(BuildContext context){return PageFrame(
+   title:'Hiring / Trips',subtitle:'Bookings, balances, expenses and profit',
+   actions:[FilledButton.icon(onPressed:()=>edit(),icon:const Icon(Icons.add),label:const Text('New booking'))],
+   child:Column(children:[
+    TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Customer, destination or invoice...'),onChanged:(v)=>setState((){q=v;reload();})),
+    const SizedBox(height:14),
+    Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows,builder:(_,s){
+      if(!s.hasData)return const Center(child:CircularProgressIndicator());
+      if(s.data!.isEmpty)return const EmptyState(Icons.route,'No bookings found');
+      return Card(child:ListView.separated(itemCount:s.data!.length,separatorBuilder:(_,__)=>const Divider(height:1),itemBuilder:(_,i){
+        final r=s.data![i];return ListTile(
+          leading:CircleAvatar(child:Text('${r['booking_status']}'.substring(0,1))),
+          title:Text('${r['customer_name']} → ${r['destination']}',style:const TextStyle(fontWeight:FontWeight.bold)),
+          subtitle:Text('${r['invoice_number']} | ${r['trip_date']} | ${r['vehicle_number']} | ${r['payment_status']}'),
+          trailing:Wrap(crossAxisAlignment:WrapCrossAlignment.center,children:[
+            Column(mainAxisAlignment:MainAxisAlignment.center,crossAxisAlignment:CrossAxisAlignment.end,children:[Text(money(r['trip_charge']),style:const TextStyle(fontWeight:FontWeight.bold)),Text('Profit ${money(r['profit'])}',style:const TextStyle(fontSize:11,color:Colors.green))]),
+            IconButton(onPressed:()=>edit(r),icon:const Icon(Icons.edit_outlined)),IconButton(onPressed:()=>expenses(r),icon:const Icon(Icons.wallet_outlined)),
+          ]),
+        );
+      }));
+    })),
+   ]),
+ );}
  Future<void> edit([Map<String,Object?>? r])async{final ok=await showDialog<bool>(context:context,builder:(_)=>HiringDialog(row:r));if(ok==true)setState(reload);}void expenses(Map<String,Object?> r)=>showDialog(context:context,builder:(_)=>ExpenseDialog(hiring:r));}
 
 class HiringDialog extends StatefulWidget{final Map<String,Object?>? row;const HiringDialog({super.key,this.row});@override State<HiringDialog> createState()=>_HiringDialogState();}
 class _HiringDialogState extends State<HiringDialog>{late Map<String,TextEditingController> c;int? vehicle;String booking='Upcoming',payment='Pending';@override void initState(){super.initState();final r=widget.row??{};vehicle=r['vehicle_id'] as int?;booking='${r['booking_status']??'Upcoming'}';payment='${r['payment_status']??'Pending'}';c={for(final k in ['customer_name','customer_mobile','customer_whatsapp','customer_address','driver_name','trip_date','pickup_location','destination','trip_charge','advance_payment','notes'])k:TextEditingController(text:'${r[k]??(k=='trip_date'?iso(DateTime.now()):'')}')};}
- @override Widget build(BuildContext context)=>AlertDialog(title:Text(widget.row==null?'New booking':'Edit booking'),content:SizedBox(width:660,child:SingleChildScrollView(child:Wrap(spacing:12,runSpacing:12,children:[...c.entries.map((e)=>SizedBox(width:305,child:TextField(controller:e.value,decoration:InputDecoration(labelText:e.key.replaceAll('_',' '))))),FutureBuilder(future:context.read<AppState>().repo.vehicles(),builder:(_,s)=>SizedBox(width:305,child:DropdownButtonFormField<int>(value:vehicle,decoration:const InputDecoration(labelText:'Vehicle'),items:s.data?.map((v)=>DropdownMenuItem(value:v['id'] as int,child:Text('${v['vehicle_number']}'))).toList(),onChanged:(v)=>setState(()=>vehicle=v))),drop('Booking status',booking,['Upcoming','Running','Completed','Cancelled'],(v)=>booking=v),drop('Payment status',payment,['Paid','Advance Paid','Pending'],(v)=>payment=v)]))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:save,child:const Text('Save'))]);Widget drop(String l,String v,List<String>a,void Function(String)x)=>SizedBox(width:305,child:DropdownButtonFormField(value:v,decoration:InputDecoration(labelText:l),items:a.map((e)=>DropdownMenuItem(value:e,child:Text(e))).toList(),onChanged:(e)=>setState(()=>x(e!))));Future<void>save()async{if(vehicle==null||c['customer_name']!.text.isEmpty)return;final d=<String,Object?>{for(final e in c.entries)e.key:e.value.text.trim(),'vehicle_id':vehicle,'booking_status':booking,'payment_status':payment,'trip_charge':number(c['trip_charge']!.text),'advance_payment':number(c['advance_payment']!.text)};try{await context.read<AppState>().repo.saveHiring(d,widget.row?['id'] as int?);if(mounted)Navigator.pop(context,true);}catch(e){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}}}
+ @override Widget build(BuildContext context){return AlertDialog(
+   title:Text(widget.row==null?'New booking':'Edit booking'),
+   content:SizedBox(width:660,child:SingleChildScrollView(child:Wrap(spacing:12,runSpacing:12,children:[
+     ...c.entries.map((e)=>SizedBox(width:305,child:TextField(controller:e.value,decoration:InputDecoration(labelText:e.key.replaceAll('_',' '))))),
+     FutureBuilder<List<Map<String,Object?>>>(future:context.read<AppState>().repo.vehicles(),builder:(_,s)=>SizedBox(width:305,child:DropdownButtonFormField<int>(initialValue:vehicle,decoration:const InputDecoration(labelText:'Vehicle'),items:s.data?.map((v)=>DropdownMenuItem<int>(value:v['id'] as int,child:Text('${v['vehicle_number']}'))).toList(),onChanged:(v)=>setState(()=>vehicle=v)))),
+     drop('Booking status',booking,['Upcoming','Running','Completed','Cancelled'],(v)=>booking=v),
+     drop('Payment status',payment,['Paid','Advance Paid','Pending'],(v)=>payment=v),
+   ]))),
+   actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:save,child:const Text('Save'))],
+ );}
+ Widget drop(String l,String v,List<String>a,void Function(String)x)=>SizedBox(width:305,child:DropdownButtonFormField<String>(initialValue:v,decoration:InputDecoration(labelText:l),items:a.map((e)=>DropdownMenuItem<String>(value:e,child:Text(e))).toList(),onChanged:(e){if(e!=null)setState(()=>x(e));}));
+ Future<void>save()async{if(vehicle==null||c['customer_name']!.text.isEmpty)return;final d=<String,Object?>{for(final e in c.entries)e.key:e.value.text.trim(),'vehicle_id':vehicle,'booking_status':booking,'payment_status':payment,'trip_charge':number(c['trip_charge']!.text),'advance_payment':number(c['advance_payment']!.text)};try{await context.read<AppState>().repo.saveHiring(d,widget.row?['id'] as int?);if(mounted)Navigator.pop(context,true);}catch(e){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}}
+}
 
 class ExpenseDialog extends StatefulWidget{final Map<String,Object?> hiring;const ExpenseDialog({super.key,required this.hiring});@override State<ExpenseDialog> createState()=>_ExpenseDialogState();}
 class _ExpenseDialogState extends State<ExpenseDialog>{String type='Fuel';final amount=TextEditingController(),notes=TextEditingController();late Future<List<Map<String,Object?>>> rows;@override void initState(){super.initState();reload();}void reload()=>rows=context.read<AppState>().repo.expenses(widget.hiring['id'] as int);@override Widget build(BuildContext context)=>AlertDialog(title:Text('Expenses — ${widget.hiring['invoice_number']}'),content:SizedBox(width:620,height:440,child:Column(children:[Row(children:[Expanded(child:DropdownButtonFormField(value:type,items:['Fuel','Driver Allowance','Toll','Parking','Other'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v)=>setState(()=>type=v!))),const SizedBox(width:8),Expanded(child:TextField(controller:amount,decoration:const InputDecoration(labelText:'Amount'))),const SizedBox(width:8),IconButton.filled(onPressed:add,icon:const Icon(Icons.add))]),const SizedBox(height:12),TextField(controller:notes,decoration:const InputDecoration(labelText:'Notes')),const SizedBox(height:12),Expanded(child:HistoryList(future:rows,builder:(r)=>'${r['expense_type']} • ${money(r['amount'])} • ${r['notes']??''}'))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Close'))]);Future<void>add()async{await context.read<AppState>().repo.addExpense({'hiring_id':widget.hiring['id'],'expense_type':type,'amount':number(amount.text),'notes':notes.text});amount.clear();notes.clear();setState(reload);}}
@@ -96,7 +182,15 @@ class _MessagesPageState extends State<MessagesPage>{int? bus;final message=Text
 class ReportsPage extends StatefulWidget{const ReportsPage({super.key});@override State<ReportsPage> createState()=>_ReportsPageState();}
 class _ReportsPageState extends State<ReportsPage>{
  final defs=const [('Active Students','students'),('Payment History','payments'),('Vehicles','vehicles'),('Hiring & Profit','hiring'),('Audit Log','audit')];
- @override Widget build(BuildContext context)=>PageFrame(title:'Reports',subtitle:'Live reports and CSV exports',child:GridView.builder(gridDelegate:const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent:360,mainAxisExtent:155,crossAxisSpacing:14,mainAxisSpacing:14),itemCount:defs.length,itemBuilder:(_,i)=>Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(Icons.description_outlined,color:Theme.of(context).colorScheme.primary),const Spacer(),Text(defs[i].$1,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17)),Row(children:[const Text('CSV / Excel compatible',style:TextStyle(color:Colors.grey,fontSize:11)),const Spacer(),IconButton.filledTonal(onPressed:()=>export(defs[i]),icon:const Icon(Icons.download))])]))));
+ @override Widget build(BuildContext context){return PageFrame(title:'Reports',subtitle:'Live reports and CSV exports',child:GridView.builder(
+   gridDelegate:const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent:360,mainAxisExtent:155,crossAxisSpacing:14,mainAxisSpacing:14),
+   itemCount:defs.length,
+   itemBuilder:(_,i)=>Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Icon(Icons.description_outlined,color:Theme.of(context).colorScheme.primary),const Spacer(),
+     Text(defs[i].$1,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17)),
+     Row(children:[const Text('CSV / Excel compatible',style:TextStyle(color:Colors.grey,fontSize:11)),const Spacer(),IconButton.filledTonal(onPressed:()=>export(defs[i]),icon:const Icon(Icons.download))]),
+   ]))),
+ ));}
  Future<void>export((String,String) def)async{final repo=context.read<AppState>().repo;final rows=switch(def.$2){'students'=>await repo.students(),'payments'=>await repo.payments(),'vehicles'=>await repo.vehicles(),'hiring'=>await repo.hiring(),_=>await repo.audit()};if(rows.isEmpty)return;final csv=const ListToCsvConverter().convert([rows.first.keys.toList(),...rows.map((r)=>r.values.toList())]);final dir=await getApplicationDocumentsDirectory();final folder=Directory(p.join(dir.path,'Nethsara Reports'));await folder.create(recursive:true);final file=File(p.join(folder.path,'${def.$2}_${iso(DateTime.now())}.csv'));await file.writeAsString(csv);if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Saved: ${file.path}')));}
 }
 
