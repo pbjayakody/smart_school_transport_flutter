@@ -1,0 +1,39 @@
+name: smart_school_transport_manager
+description: Offline-first school transport and hiring management system.
+publish_to: none
+version: 4.0.0+400
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  sqflite_common_ffi: ^2.3.4+4
+  path: ^1.9.0
+  path_provider: ^2.1.5
+  intl: ^0.20.2
+  url_launcher: ^6.3.1
+  file_picker: ^8.1.7
+  shared_preferences: ^2.5.1
+  crypto: ^3.0.6
+  pdf: ^3.11.2
+  printing: ^5.14.0
+  csv: ^6.0.0
+  barcode_widget: ^2.0.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/app_icon.png
+    - assets/database/nethsara_legacy.db
+  fonts:
+    - family: NotoSansSinhala
+      fonts:
+        - asset: assets/fonts/NotoSansSinhala.ttf
